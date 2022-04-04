@@ -1,0 +1,898 @@
+'---------------------------------------------------------------------
+' Adventurevision BIOS ROM
+'---------------------------------------------------------------------
+
+0000:  F5      SEL MB1	;Jump to start of cartridge
+0001:  04  00  JMP 000	;
+0003:  04  36  JMP 036	;Copy video data from memory to display
+0005:  04  71  JMP 071  ;Copy graphics data to a specific postion on the screen
+0007:  04  F0  JMP 0F0	;Similar to 71
+0009:  24  A0  JMP 1A0
+000B:  44  B9  JMP 2B9
+000D:  64  61  JMP 361
+000F:  64  24  JMP 324
+0011:  44  E2  JMP 2E2  ;Fill RAM banks 1-3 with 00, then with FF
+0013:  44  EF  JMP 2EF	;Fill RAM banks 1-3 with FF
+0015:  04  2B  JMP 02B	;Clear internal user RAM
+0017:  64  9A  JMP 39A  ;Two byte BCD add
+0019:  64  CE  JMP 3CE
+001B:  64  A9  JMP 3A9  ;Sound
+001D:  44  FF  JMP 2FF  ;Move data structure used by $71 back to registers
+001F:  64  0E  JMP 30E  ;Setup data structure for use by $71
+0021:  64  1D  JMP 31D
+0023:  24  97  JMP 197  ;Sets up data strucutre and call $71
+0025:  64  F1  JMP 3F1  ;Bit number R5 in A is set high
+0027:  64  EF  JMP 3EF  ;Write to expansion port 5
+0029:  64  ED  JMP 3ED	;Write to expansion port 4
+
+'--------------------------------------------------------------------
+' Clear internal user RAM
+'--------------------------------------------------------------------
+002B:  B8  3F  MOV R0,3F
+002D:  B9  20  MOV R1,20
+002F:  27      CLR A
+0030:  B0  00  MOV @ R0,00
+0032:  C8      DEC R0
+0033:  E9  30  DJNZ R1 30
+0035:  83      RET
+
+
+'---------------------------------------------------------------------
+' Copy video data from memory to display
+'---------------------------------------------------------------------
+0036:  C5      SEL RB0		;Register bank 0
+0037:  B8  3F  MOV R0,3F	;Increment RAM location 3F, Frame counter?
+0039:  10      INC @ R0
+003A:  46  3A  JNT1,3A		;Wait for end of frame
+003C:  56  3C  JT1,3C		;Wait until mirror is in position for next frame
+003E:  B9  01  MOV R1,01	;Start with RAM bank 1
+0040:  F9      MOV A,R1		;
+0041:  39      OUTL P1,A	;Enable RAM bank
+0042:  B8  05  MOV R0,05	;RAM pointer
+0044:  18      INC R0		;Increment pointer
+0045:  F8      MOV A,R0		;Check if at end of RAM bank
+0046:  96  50  JNZ,50		;Jump if not
+
+0048:  27      CLR A		
+0049:  3A      OUTL P2,A
+004A:  19      INC R1		;Next RAM bank
+004B:  F9      MOV A,R1		;Check if greater the bank 3
+004C:  52  6D  JB2,6D		;Jump when done 3rd bank
+004E:  04  41  JMP 041
+
+0050:  23  20  MOV A,20		;Select first video address
+0052:  3A      OUTL P2,A	;
+0053:  80      MOVX A,@ R0	;Move data to video
+0054:  23  40  MOV A,40		;Select second video address
+0056:  3A      OUTL P2,A	;
+0057:  18      INC R0		;Next memory location
+0058:  80      MOVX A,@ R0	;Move data to video
+0059:  23  60  MOV A,60		;Select third video address
+005B:  3A      OUTL P2,A	;
+005C:  18      INC R0		;Next memory location
+005D:  80      MOVX A,@ R0	;Move data to video
+005E:  23  80  MOV A,80		;Select fourth video address
+0060:  3A      OUTL P2,A	;
+0061:  18      INC R0		;Next memory location
+0062:  80      MOVX A,@ R0	;Move data to video
+0063:  23  A0  MOV A,A0		;Select fifth video address
+0065:  3A      OUTL P2,A	;
+0066:  18      INC R0		;Next memory location
+0067:  80      MOVX A,@ R0	;Move data to video
+0068:  23  10  MOV A,10		;Strobe data to video (I think)
+006A:  3A      OUTL P2,A	;
+006B:  04  44  JMP 044		;Do next column
+006D:  27      CLR A		;Back to ram bank 0
+006E:  39      OUTL P1,A	;
+006F:  D5      SEL RB1		;Register bank 1
+0070:  83      RET
+
+'------------------------------------------------------------------------
+' Copies graphics data to a specific place on the screen
+'	R1 = Pointer to data structure in External RAM bank 0
+'	(R1) + 1 = Initial data pointer
+'	(R1) + 2 = number of pixels to shift image up
+'	(R1) + 3 = RAM bank to start writing image to
+'	(R1) + 4 = RAM pointer to start writing image to
+' Calls:
+'	MB1 ($02) - Returns graphics byte in A
+' Returns:
+'	Internal RAM 3B, bit 0 = collision
+'
+' Uses:
+' RB0
+'	R2 = Data pointer
+' 
+' 	R1 = Bits shift data
+' 	R2 = RAM Bank 1
+' 	R3 = RAM pointer 1
+' 	R4,R7 = Graphics data
+' 	R5 = RAM Bank 2
+' 	R6 = RAM pointer 2
+'-------------------------------------------------------------------------
+
+0071:  27      CLR A		;Set RAM bank 0
+0072:  39      OUTL P1,A	;
+0073:  F9      MOV A,R1		;R1 = (R1 & $F8) + 3	
+0074:  53  F8  ANL A,F8		;
+0076:  03  03  ADD A,03		;
+0078:  A9      MOV R1,A		;
+0079:  81      MOVX A,@ R1	;If RAM bank > 3 then done
+007A:  03  FC  ADD A,FC		;
+007C:  F6  A9  JC A9		;
+007E:  C9      DEC R1		;Move pointer back to read data pointer
+007F:  C9      DEC R1		;
+0080:  81      MOVX A,@ R1	;Read data pointer
+0081:  AA      MOV R2,A		; 
+0082:  F9      MOV A,R1		;Copy pointer to RB0(R1)
+0083:  C5      SEL RB0		;
+0084:  A8      MOV R0,A		;
+0085:  18      INC R0		;Read shift count
+0086:  80      MOVX A,@ R0	;
+0087:  A9      MOV R1,A		;
+0088:  18      INC R0		;
+0089:  80      MOVX A,@ R0	;Read RAM bank
+008A:  AA      MOV R2,A		;
+008B:  18      INC R0		;
+008C:  80      MOVX A,@ R0	;Read RAM pointer
+008D:  AB      MOV R3,A		;
+
+008E:  FB      MOV A,R3	        ;RAM pointer 2 = RAM pointer 1 + 1
+008F:  17      INC A	        ;
+0090:  AE      MOV R6,A	        ;
+0091:  FA      MOV A,R2	        ;RAM Bank 2 = RAM Bank 1
+0092:  AD      MOV R5,A	        ;
+0093:  96  9F  JNZ 9F	        ;
+
+0095:  BE  06  MOV R6,06	;RAM pointer 2 = 6
+0097:  1D      INC R5		;Increment RAM bank 2
+0098:  FD      MOV A,R5		;If RAM bank > 3 then set it to 1
+0099:  03  FC  ADD A,FC		;
+009B:  96  9F  JNZ 9F		;
+009D:  BD  01  MOV R5,01	;
+
+009F:  BF  00  MOV R7,00	;Clear upper part of graphics image
+00A1:  F5      SEL MB1		;Call cartridge to get graphic data
+00A2:  14  02  CALL 002		;
+00A4:  E5      SEL MB0		;
+00A5:  AC      MOV R4,A		;Save graphic data
+00A6:  17      INC A		;If A <> $FF then not done
+00A7:  96  AD  JNZ AD		;
+00A9:  27      CLR A		;Set RAM bank 0
+00AA:  39      OUTL P1,A	;
+00AB:  D5      SEL RB1		;Set register bank 1
+00AC:  83      RET		
+
+00AD:  34  78  CALL 178		;Shift graphics data
+
+'Check for collision
+00AF:  FA      MOV A,R2		;Set RAM bank
+00B0:  39      OUTL P1,A	;
+00B1:  FB      MOV A,R3		;Read graphics data for first half of graphic from video RAM 
+00B2:  A8      MOV R0,A		;
+00B3:  80      MOVX A,@ R0	;
+00B4:  37      CPL A		;Invert it so on pixels are 1s
+00B5:  5C      ANL A,R4		;And it with the graphics data
+00B6:  C6  C2  JZ C2		;Jump if none of the bits collided
+
+00B8:  23  01  MOV A,01		;Set bit 0 of internal RAM $3B
+00BA:  B8  3B  MOV R0,3B	;
+00BC:  40      ORL A,@ R0	;
+00BD:  A0      MOV @ R0,A	;
+00BE:  27      CLR A		;Set RAM to bank 0
+00BF:  39      OUTL P1,A	;
+00C0:  04  CB  JMP 0CB		;Skip second half of graphic 
+
+00C2:  FD      MOV A,R5		;Set RAM bank
+00C3:  39      OUTL P1,A	;
+00C4:  FE      MOV A,R6		;Read graphics data for second half of graphic from video RAM
+00C5:  A8      MOV R0,A		;
+00C6:  80      MOVX A,@ R0	;
+00C7:  37      CPL A		;Invert it so on pixels are 1s
+00C8:  5F      ANL A,R7		;And it with the graphics data
+00C9:  96  B8  JNZ B8		;Jump if any of the bits collided
+
+'OR lower part of graphics data into RAM
+00CB:  FA      MOV A,R2		;Set RAM bank
+00CC:  39      OUTL P1,A	;
+00CD:  FB      MOV A,R3		;RAM pointer
+00CE:  A8      MOV R0,A		;
+00CF:  80      MOVX A,@ R0	;Read current graphics data and or in new graphics data from R4
+00D0:  37      CPL A		;
+00D1:  4C      ORL A,R4		;
+00D2:  37      CPL A		;
+00D3:  90      MOVX @ R0,A	;Write back to video RAM
+
+'OR upper part of graphics data into RAM
+00D4:  FD      MOV A,R5		;Set RAM bank
+00D5:  39      OUTL P1,A	;
+00D6:  FE      MOV A,R6		;
+00D7:  A8      MOV R0,A		;
+00D8:  80      MOVX A,@ R0	;Read current graphics data and or in new graphics data from R7
+00D9:  37      CPL A		;
+00DA:  4F      ORL A,R7		;
+00DB:  37      CPL A		;
+00DC:  90      MOVX @ R0,A	;
+
+00DD:  FB      MOV A,R3		;Move RAM pointer to the next column
+00DE:  03  05  ADD A,05		;
+00E0:  AB      MOV R3,A		;
+00E1:  E6  EE  JNC EE		;Jump if not carry
+00E3:  03  06  ADD A,06		;RAM postion = 6
+00E5:  AB      MOV R3,A		;Next RAM bank
+00E6:  1A      INC R2		;
+00E7:  FA      MOV A,R2		;Get RAM bank
+00E8:  03  FC  ADD A,FC		;If RAM bank > 3, set it to 1
+00EA:  96  EE  JNZ EE		;
+00EC:  BA  01  MOV R2,01	;
+00EE:  04  8E  JMP 08E		;
+
+
+00F0:  27      CLR A		;Set RAM bank 0
+00F1:  39      OUTL P1,A	;
+00F2:  F9      MOV A,R1		;R1 = (R1 & $F8) + 3
+00F3:  53  F8  ANL A,F8		;
+00F5:  03  03  ADD A,03		;
+00F7:  A9      MOV R1,A		;
+00F8:  81      MOVX A,@ R1	;If RAM bank > 3 then done
+00F9:  03  FC  ADD A,FC		;
+00FB:  E6  FF  JNC FF		;
+00FD:  24  2B  JMP 12B		;
+00FF:  C9      DEC R1		;Move pointer back to read data pointer
+0100:  C9      DEC R1		;
+0101:  81      MOVX A,@ R1	;Read data pointer
+0102:  AA      MOV R2,A		; 
+0103:  F9      MOV A,R1
+0104:  C5      SEL RB0
+0105:  A8      MOV R0,A
+0106:  18      INC R0
+0107:  80      MOVX A,@ R0	;Read shift count
+0108:  A9      MOV R1,A		;
+0109:  18      INC R0		;
+010A:  80      MOVX A,@ R0	;Read RAM bank
+010B:  AA      MOV R2,A		;
+010C:  18      INC R0		;
+010D:  80      MOVX A,@ R0	;Read RAM pointer
+010E:  AB      MOV R3,A		;
+
+010F:  FB      MOV A,R3		;RAM pointer 2 = RAM pointer 1 + 1
+0110:  03  01  ADD A,01		;
+0112:  AE      MOV R6,A		;
+0113:  FA      MOV A,R2		;RAM Bank 2 = RAM Bank 1
+0114:  AD      MOV R5,A		;
+0115:  E6  21  JNC 21
+
+0117:  BE  06  MOV R6,06	;RAM pointer 2 = 6
+0119:  1D      INC R5		;Increment RAM bank 2
+011A:  FD      MOV A,R5		;If RAM bank > 3 then set it to 1
+011B:  03  FC  ADD A,FC		;
+011D:  96  21  JNZ 21		;
+011F:  BD  01  MOV R5,01	;
+
+0121:  BF  00  MOV R7,00	;Clear upper part of graphics image
+0123:  F5      SEL MB1		;Call cartridge to get graphic data
+0124:  14  02  CALL 002		;
+0126:  E5      SEL MB0		;
+0127:  AC      MOV R4,A		;Save graphic data
+0128:  17      INC A		;If A <> $FF then not done
+0129:  96  2F  JNZ 2F		;
+012B:  27      CLR A		;Set RAM bank 0
+012C:  39      OUTL P1,A	;
+012D:  D5      SEL RB1		;Set register bank 1
+012E:  83      RET
+
+012F:  34  78  CALL 178		;Shift graphics data
+
+
+0131:  B8  38  MOV R0,38	;Read contents of $38 from internal RAM
+0133:  F0      MOV A,@ R0	;
+0134:  6B      ADD A,R3		;Add to RAM pointer
+0135:  96  41  JNZ 41		;Did not overflow
+0137:  18      INC R0		;Read contents of $39 from internal RAM
+0138:  F0      MOV A,@ R0	;
+0139:  6A      ADD A,R2		;Add to page pointer
+013A:  96  41  JNZ 41		;Did not overflow
+013C:  18      INC R0		;Read contents of $3A from internal RAM
+013D:  F0      MOV A,@ R0	;
+013E:  5C      ANL A,R4		;AND it with graphics data
+013F:  96  51  JNZ 51		
+
+0141:  B8  38  MOV R0,38	;Read contents of $38 from internal RAM
+0143:  F0      MOV A,@ R0	;
+0144:  6E      ADD A,R6		;Add to RAM pointer 2
+0145:  96  57  JNZ 57		;Did not overflow
+0147:  18      INC R0		;Read contents of $39 from internal RAM
+0148:  F0      MOV A,@ R0	;
+0149:  6D      ADD A,R5		;Add to page pointer 2
+014A:  96  57  JNZ,57		;Did not overflow
+014C:  18      INC R0		;Read contents of $3A from internal RAM
+014D:  F0      MOV A,@ R0	;
+014E:  5F      ANL A,R7		;AND it with graphics data
+014F:  C6  57  JZ 57		;
+0151:  23  02  MOV A,02		;Set bit 1 of Internal RAM $3B
+0153:  B8  3B  MOV R0,3B	;
+0155:  40      ORL A,@ R0	;
+0156:  A0      MOV @ R0,A	;
+
+0157:  FA      MOV A,R2	      ;Set RAM bank
+0158:  39      OUTL P1,A      ;
+0159:  FB      MOV A,R3	      ;RAM pointer
+015A:  A8      MOV R0,A	      ;
+015B:  80      MOVX A,@ R0    ;Read current graphics data and or in new graphics data from R4
+015C:  4C      ORL A,R4	      ;
+015D:  90      MOVX @ R0,A    ;
+015E:  FD      MOV A,R5	      ;Set RAM bank 
+015F:  39      OUTL P1,A      ;
+0160:  FE      MOV A,R6	      ;RAM pointer
+0161:  A8      MOV R0,A	      ;
+0162:  80      MOVX A,@ R0    ;Read current graphics data and or in new graphics data from R7
+0163:  4F      ORL A,R7	      ;
+0164:  90      MOVX @ R0,A    ;
+
+0165:  FB      MOV A,R3	       ;Move RAM pointer to the next column
+0166:  03  05  ADD A,05	       ;
+0168:  AB      MOV R3,A	       ;
+0169:  E6  0F  JNC 0F	       ;Jump if not carry
+016B:  03  06  ADD A,06	       ;RAM postion = 6
+016D:  AB      MOV R3,A	       ;Next RAM bank
+016E:  1A      INC R2	       ;
+016F:  FA      MOV A,R2	       ;Get RAM bank
+0170:  03  FC  ADD A,FC	       ;If RAM bank > 3, set it to 1
+0172:  96  76  JNZ,76	       ;
+0174:  BA  01  MOV R2,01       ;
+0176:  24  0F  JMP 10F	       ;
+
+'Shifts bits of  R4 and R7 to the left
+0178:  F9      MOV A,R1		'Rotate counter
+0179:  A8      MOV R0,A		'
+017A:  C6  89  JZ 89		'If rotate counter = 0, then done
+017C:  03  FC  ADD A,FC		'
+017E:  F6  8A  JC 8A		'Jump if counter > 3
+0180:  97      CLR C		'
+0181:  FC      MOV A,R4		'Shift R4
+0182:  F7      RLC A		'
+0183:  AC      MOV R4,A		'
+0184:  FF      MOV A,R7		'Shift R7
+0185:  F7      RLC A		'
+0186:  AF      MOV R7,A		'
+0187:  E8  80  DJNZ R0 80	'Decrement counter and shift again
+0189:  83      RET		'Done
+
+018A:  17      INC A		
+018B:  A8      MOV R0,A
+018C:  FC      MOV A,R4
+018D:  53  0F  ANL A,0F
+018F:  47      SWAP A
+0190:  2C      XCH A,R4
+0191:  53  F0  ANL A,F0
+0193:  47      SWAP A
+0194:  AF      MOV R7,A
+0195:  24  87  JMP 187
+               
+               
+;-------------------------------------------------------------------------
+; Sets up data strucutre and call $71
+'-------------------------------------------------------------------------
+0197:  B9  E1  MOV R1,E1	;RAM pointer
+0199:  F8      MOV A,R0		;Initial data pointer
+019A:  91      MOVX @ R1,A	;Move to data strucutre
+019B:  74  0E  CALL 30E		;Setup rest of structure
+019D:  14  71  CALL 071		;Move graphics to video RAM
+019F:  83      RET
+
+01A0:  D5      SEL RB1
+01A1:  B9  00  MOV R1,00
+01A3:  27      CLR A
+01A4:  39      OUTL P1,A
+01A5:  81      MOVX A,@ R1
+01A6:  96  B2  JNZ B2
+01A8:  F9      MOV A,R1
+01A9:  53  F8  ANL A,F8
+01AB:  03  08  ADD A,08
+01AD:  A9      MOV R1,A
+01AE:  96  A5  JNZ A5
+01B0:  44  18  JMP 218
+
+01B2:  F5      SEL MB1
+01B3:  14  06  CALL 006
+01B5:  E5      SEL MB0
+01B6:  F2  A8  JB7 A8
+01B8:  B8  3B  MOV R0,3B
+01BA:  B0  00  MOV @ R0,00
+01BC:  19      INC R1
+01BD:  F5      SEL MB1
+01BE:  14  08  CALL 008
+01C0:  E5      SEL MB0
+01C1:  14  F0  CALL 0F0
+01C3:  B8  3B  MOV R0,3B
+01C5:  F0      MOV A,@ R0
+01C6:  96  D4  JNZ,D4
+01C8:  F9      MOV A,R1
+01C9:  53  F8  ANL A,F8
+01CB:  A9      MOV R1,A
+01CC:  81      MOVX A,@ R1
+01CD:  53  0F  ANL A,0F
+01CF:  AC      MOV R4,A
+01D0:  54  FF  CALL 2FF
+01D2:  24  E0  JMP 1E0
+
+01D4:  B8  3E  MOV R0,3E
+01D6:  F0      MOV A,@ R0
+01D7:  17      INC A
+01D8:  96  C8  JNZ,C8
+01DA:  F9      MOV A,R1
+01DB:  53  F8  ANL A,F8
+01DD:  A0      MOV @ R0,A
+01DE:  24  A8  JMP 1A8
+
+01E0:  BA  00  MOV R2,00
+01E2:  BB  00  MOV R3,00
+01E4:  54  B9  CALL 2B9
+01E6:  C6  EE  JZ EE
+01E8:  F5      SEL MB1
+01E9:  14  04  CALL 004
+01EB:  E5      SEL MB0
+01EC:  24  E4  JMP 1E4
+01EE:  EC  E4  DJNZ R4 E4
+01F0:  FA      MOV A,R2
+01F1:  74  61  CALL 361
+01F3:  FB      MOV A,R3
+01F4:  74  24  CALL 324
+01F6:  F5      SEL MB1
+01F7:  14  0A  CALL 00A
+01F9:  E5      SEL MB0
+01FA:  74  0E  CALL 30E
+01FC:  C9      DEC R1
+01FD:  14  71  CALL 071
+01FF:  B8  3B  MOV R0,3B
+0201:  F0      MOV A,@ R0
+0202:  96  06  JNZ,06
+0204:  24  A8  JMP 1A8
+0206:  B8  3C  MOV R0,3C
+0208:  F0      MOV A,@ R0
+0209:  69      ADD A,R1
+020A:  E6  16  JNC 16
+020C:  B8  3E  MOV R0,3E
+020E:  F0      MOV A,@ R0
+020F:  17      INC A
+0210:  96  16  JNZ,16
+0212:  F9      MOV A,R1
+0213:  53  F8  ANL A,F8
+0215:  A0      MOV @ R0,A
+0216:  24  A8  JMP 1A8
+0218:  81      MOVX A,@ R1
+0219:  96  24  JNZ,24
+021B:  F9      MOV A,R1
+021C:  53  F8  ANL A,F8
+021E:  03  08  ADD A,08
+0220:  A9      MOV R1,A
+0221:  96  18  JNZ,18
+0223:  83      RET
+
+0224:  F2  28  JB7 28
+0226:  44  1B  JMP 21B
+
+0228:  53  0F  ANL A,0F
+022A:  AC      MOV R4,A
+022B:  54  FF  CALL 2FF
+022D:  FD      MOV A,R5
+022E:  A8      MOV R0,A
+022F:  23  01  MOV A,01		
+0231:  E7      RL A
+0232:  E8  31  DJNZ R0 31	
+0234:  AA      MOV R2,A		;Save graphics data in R2
+0235:  FE      MOV A,R6		;Set RAM bank
+0236:  39      OUTL P1,A	;
+0237:  FF      MOV A,R7		;Get RAM address
+0238:  A8      MOV R0,A		;
+0239:  80      MOVX A,@ R0	;Read data from RAM
+023A:  4A      ORL A,R2		;OR it with R2
+023B:  90      MOVX @ R0,A	;Write back to RAM
+023C:  27      CLR A		;Set RAM bank 0
+023D:  39      OUTL P1,A	;
+023E:  BA  00  MOV R2,00
+0240:  BB  00  MOV R3,00
+0242:  54  B9  CALL 2B9
+0244:  C6  5C  JZ 5C
+0246:  23  F8  MOV A,F8
+0248:  59      ANL A,R1
+0249:  03  01  ADD A,01
+024B:  A9      MOV R1,A
+024C:  81      MOVX A,@ R1
+024D:  07      DEC A
+024E:  91      MOVX @ R1,A
+024F:  C6  57  JZ 57
+0251:  F5      SEL MB1
+0252:  14  04  CALL 004
+0254:  E5      SEL MB0
+0255:  44  42  JMP 242
+0257:  C9      DEC R1
+0258:  27      CLR A
+0259:  91      MOVX @ R1,A
+025A:  44  1B  JMP 21B
+025C:  FA      MOV A,R2
+025D:  74  61  CALL 361
+025F:  FB      MOV A,R3
+0260:  74  24  CALL 324
+0262:  F5      SEL MB1
+0263:  14  0C  CALL 00C
+0265:  E5      SEL MB0
+0266:  FD      MOV A,R5
+0267:  17      INC A
+0268:  AA      MOV R2,A
+0269:  23  01  MOV A,01
+026B:  44  6E  JMP 26E
+026D:  E7      RL A
+026E:  EA  6D  DJNZ R2 6D
+0270:  AA      MOV R2,A
+0271:  FF      MOV A,R7
+0272:  A8      MOV R0,A
+0273:  FE      MOV A,R6
+0274:  39      OUTL P1,A
+0275:  80      MOVX A,@ R0
+0276:  AB      MOV R3,A
+0277:  4A      ORL A,R2
+0278:  90      MOVX @ R0,A
+0279:  FB      MOV A,R3
+027A:  37      CPL A
+027B:  5A      ANL A,R2
+027C:  96  8C  JNZ,8C
+027E:  EC  3C  DJNZ R4 3C
+0280:  FA      MOV A,R2
+0281:  80      MOVX A,@ R0
+0282:  37      CPL A
+0283:  4A      ORL A,R2
+0284:  37      CPL A
+0285:  90      MOVX @ R0,A
+0286:  27      CLR A
+0287:  39      OUTL P1,A
+0288:  74  0E  CALL 30E
+028A:  44  1B  JMP 21B
+028C:  27      CLR A
+028D:  39      OUTL P1,A
+028E:  23  F8  MOV A,F8
+0290:  59      ANL A,R1
+0291:  A9      MOV R1,A
+0292:  81      MOVX A,@ R1
+0293:  AB      MOV R3,A
+0294:  FE      MOV A,R6
+0295:  39      OUTL P1,A
+0296:  FB      MOV A,R3
+0297:  53  30  ANL A,30
+0299:  C6  7E  JZ 7E
+029B:  28      XCH A,R0
+029C:  AB      MOV R3,A
+029D:  F8      MOV A,R0
+029E:  B8  37  MOV R0,37
+02A0:  A0      MOV @ R0,A
+02A1:  18      INC R0
+02A2:  FF      MOV A,R7
+02A3:  37      CPL A
+02A4:  17      INC A
+02A5:  A0      MOV @ R0,A
+02A6:  18      INC R0
+02A7:  FE      MOV A,R6
+02A8:  37      CPL A
+02A9:  17      INC A
+02AA:  A0      MOV @ R0,A
+02AB:  FD      MOV A,R5
+02AC:  A8      MOV R0,A
+02AD:  23  01  MOV A,01
+02AF:  E7      RL A
+02B0:  E8  AF  DJNZ R0 AF
+02B2:  B8  3A  MOV R0,3A
+02B4:  A0      MOV @ R0,A
+02B5:  FB      MOV A,R3
+02B6:  A8      MOV R0,A
+02B7:  44  7E  JMP 27E
+
+02B9:  23  F8  MOV A,F8
+02BB:  59      ANL A,R1
+02BC:  03  05  ADD A,05
+02BE:  A9      MOV R1,A
+02BF:  81      MOVX A,@ R1
+02C0:  C6  DB  JZ DB
+02C2:  F2  C8  JB7 C8
+02C4:  1A      INC R2
+02C5:  07      DEC A
+02C6:  44  CA  JMP 2CA
+02C8:  CA      DEC R2
+02C9:  17      INC A
+02CA:  91      MOVX @ R1,A
+02CB:  19      INC R1
+02CC:  81      MOVX A,@ R1
+02CD:  96  D0  JNZ,D0
+02CF:  83      RET
+02D0:  F2  D6  JB7 D6
+02D2:  1B      INC R3
+02D3:  07      DEC A
+02D4:  44  D8  JMP 2D8
+02D6:  CB      DEC R3
+02D7:  17      INC A
+02D8:  91      MOVX @ R1,A
+02D9:  27      CLR A
+02DA:  83      RET
+02DB:  19      INC R1
+02DC:  81      MOVX A,@ R1
+02DD:  96  D0  JNZ,D0
+02DF:  23  FF  MOV A,FF
+02E1:  83      RET
+
+'--------------------------------------------------------------
+' Fill RAM banks 1-3 with 00 then FF
+' Note: This routine appears to be missing a RET
+'--------------------------------------------------------------
+02E2:  B8  00  MOV R0,00
+02E4:  BB  04  MOV R3,04
+02E6:  FB      MOV A,R3
+02E7:  07      DEC A
+02E8:  39      OUTL P1,A
+02E9:  27      CLR A
+02EA:  90      MOVX @ R0,A
+02EB:  E8  EA  DJNZ R0 EA
+02ED:  EB  E6  DJNZ R3 E6
+
+'--------------------------------------------------------------
+' Fill RAM banks 1-3 with FF
+'--------------------------------------------------------------
+02EF:  B8  00  MOV R0,00
+02F1:  BB  03  MOV R3,03
+02F3:  FB      MOV A,R3
+02F4:  39      OUTL P1,A
+02F5:  23  FF  MOV A,FF
+02F7:  90      MOVX @ R0,A
+02F8:  E8  F7  DJNZ R0 F7
+02FA:  EB  F3  DJNZ R3 F3
+02FC:  27      CLR A
+02FD:  39      OUTL P1,A
+02FE:  83      RET
+
+;-----------------------------------------------------------------------
+; Move data structure used by $71 back to registers
+;	R1 = RAM address to put structure at
+;	R5 = Bits to shift data
+;	R6 = RAM bank
+;	R7 = RAM pointer
+;-----------------------------------------------------------------------
+02FF:  F9      MOV A,R1
+0300:  53  F8  ANL A,F8
+0302:  03  02  ADD A,02
+0304:  A9      MOV R1,A
+0305:  81      MOVX A,@ R1
+0306:  AD      MOV R5,A
+0307:  19      INC R1
+0308:  81      MOVX A,@ R1
+0309:  AE      MOV R6,A
+030A:  19      INC R1
+030B:  81      MOVX A,@ R1
+030C:  AF      MOV R7,A
+030D:  83      RET
+
+;-----------------------------------------------------------------------
+; Setup data structure for use by $71
+;	R1 = RAM address to put structure at
+;	R5 = Bits to shift data
+;	R6 = RAM bank
+;	R7 = RAM pointer
+;-----------------------------------------------------------------------
+030E:  F9      MOV A,R1		;Get address to put structure at
+030F:  53  F8  ANL A,F8		;Move it to 8 byte boundry
+0311:  03  02  ADD A,02		;
+0313:  A9      MOV R1,A		;
+0314:  FD      MOV A,R5		;
+0315:  91      MOVX @ R1,A	;Bits to shift data
+0316:  19      INC R1		;
+0317:  FE      MOV A,R6		;RAM bank
+0318:  91      MOVX @ R1,A	;
+0319:  19      INC R1		;
+031A:  FF      MOV A,R7		;RAM pointer
+031B:  91      MOVX @ R1,A	;
+031C:  83      RET		;
+
+
+031D:  74  0E  CALL 30E	        ;Setup data structure
+031F:  27      CLR A		;
+0320:  91      MOVX @ R1,A	;Set RAM pointer to 0
+0321:  19      INC R1		;
+0322:  91      MOVX @ R1,A	;Set last byte to 0
+0323:  83      RET		;
+
+0324:  B8  2E  MOV R0,2E
+0326:  6D      ADD A,R5
+0327:  AD      MOV R5,A
+0328:  F2  4C  JB7 4C
+032A:  53  F8  ANL A,F8
+032C:  96  2F  JNZ,2F
+032E:  83      RET
+032F:  FD      MOV A,R5
+0330:  03  F8  ADD A,F8
+0332:  AD      MOV R5,A
+0333:  1F      INC R7
+0334:  FF      MOV A,R7
+0335:  96  40  JNZ,40
+0337:  BF  06  MOV R7,06
+0339:  1E      INC R6
+033A:  FE      MOV A,R6
+033B:  37      CPL A
+033C:  17      INC A
+033D:  60      ADD A,@ R0
+033E:  E6  43  JNC 43
+0340:  FD      MOV A,R5
+0341:  64  2A  JMP 32A
+0343:  BE  01  MOV R6,01
+0345:  64  40  JMP 340
+0347:  53  F8  ANL A,F8
+0349:  96  4C  JNZ,4C
+034B:  83      RET
+034C:  FD      MOV A,R5
+034D:  03  08  ADD A,08
+034F:  AD      MOV R5,A
+0350:  CF      DEC R7
+0351:  FF      MOV A,R7
+0352:  03  FA  ADD A,FA
+0354:  E6  59  JNC 59
+0356:  FD      MOV A,R5
+0357:  64  47  JMP 347
+0359:  BF  FF  MOV R7,FF
+035B:  EE  56  DJNZ R6 56
+035D:  F0      MOV A,@ R0
+035E:  AE      MOV R6,A
+035F:  64  56  JMP 356
+
+
+0361:  F2  85  JB7 85		;Jump if A is negative
+
+; R7 = R7 + (A*5)
+0363:  A8      MOV R0,A		;A = A * 5
+0364:  E7      RL A		;
+0365:  E7      RL A     	;
+0366:  68      ADD A,R0 	;
+0367:  A8      MOV R0,A 	;
+
+0368:  6F      ADD A,R7		;Add A to R7
+0369:  AF      MOV R7,A		;
+036A:  F6  75  JC 75		;Jump if there was a carry
+036C:  83      RET		;
+
+036D:  AF      MOV R7,A	
+036E:  EE  74  DJNZ R6 74
+0370:  B8  2E  MOV R0,2E
+0372:  F0      MOV A,@ R0
+0373:  AE      MOV R6,A
+0374:  83      RET
+
+0375:  03  06  ADD A,06		;Skip over first 6 bytes of RAM page
+0377:  AF      MOV R7,A		;
+0378:  1E      INC R6		;Next RAM page
+0379:  FE      MOV A,R6		;
+037A:  B8  2E  MOV R0,2E
+037C:  37      CPL A
+037D:  17      INC A
+037E:  60      ADD A,@ R0
+037F:  E6  82  JNC 82
+0381:  83      RET
+0382:  BE  01  MOV R6,01
+0384:  83      RET
+
+0385:  37      CPL A		;Ones complement A
+0386:  17      INC A		;
+0387:  A8      MOV R0,A		;A = A * 5
+0388:  E7      RL A		;	
+0389:  E7      RL A		;
+038A:  68      ADD A,R0		;
+038B:  37      CPL A		;Ones complement A
+038C:  17      INC A		;
+038D:  6F      ADD A,R7		;Add A to R7
+038E:  E6  96  JNC 96		;
+0390:  AF      MOV R7,A
+0391:  03  FA  ADD A,FA
+0393:  E6  6D  JNC 6D
+0395:  83      RET
+0396:  03  FA  ADD A,FA
+0398:  64  6D  JMP 36D
+
+'-------------------------------------------------------------------
+' Adds the contents of A to the 2 byte BCD value at 33,34
+'	A = value to add
+'-------------------------------------------------------------------
+039A:  B8  34  MOV R0,34
+039C:  60      ADD A,@ R0
+039D:  57      DAA A
+039E:  A0      MOV @ R0,A
+039F:  F6  A2  JC A2
+03A1:  83      RET
+
+03A2:  C8      DEC R0
+03A3:  F0      MOV A,@ R0
+03A4:  03  01  ADD A,01
+03A6:  57      DAA A
+03A7:  A0      MOV @ R0,A
+03A8:  83      RET
+
+'-----------------------------------------------------------------
+' Write sound command
+'	R1 = Sound command byte
+'-----------------------------------------------------------------
+03A9:  23  C0  MOV A,C0		;Write to audio chip
+03AB:  3A      OUTL P2,A	;	
+03AC:  23  01  MOV A,01		;	
+03AE:  39      OUTL P1,A	;Set RAM bank 1
+03AF:  B8  00  MOV R0,00	;Reset sound chip
+03B1:  27      CLR A		;
+03B2:  90      MOVX @ R0,A	;
+03B3:  80      MOVX A,@ R0	;
+03B4:  BA  14  MOV R2,14	;Wait for reset
+03B6:  EA  B6  DJNZ R2 B6	;	
+03B8:  00      NOP		;
+03B9:  23  01  MOV A,01		;Release sound reset 
+03BB:  90      MOVX @ R0,A	;
+03BC:  80      MOVX A,@ R0	;
+03BD:  F9      MOV A,R1		;Sound command
+03BE:  3A      OUTL P2,A	;Write to sound chip
+03BF:  BA  26  MOV R2,26	;Wait	
+03C1:  EA  C1  DJNZ R2 C1	; 
+03C3:  00      NOP		;
+03C4:  47      SWAP A		;Swap upper and lower 4bits
+03C5:  3A      OUTL P2,A	;Write to sound chip
+03C6:  BA  21  MOV R2,21	;Wait	
+03C8:  EA  C8  DJNZ R2 C8	;
+03CA:  27      CLR A		;
+03CB:  39      OUTL P1,A	;RAM bank 0
+03CC:  3A      OUTL P2,A	;Clear P2
+03CD:  83      RET
+
+
+03CE:  27      CLR A
+03CF:  39      OUTL P1,A
+03D0:  B8  01  MOV R0,01
+03D2:  27      CLR A
+03D3:  90      MOVX @ R0,A
+03D4:  FD      MOV A,R5
+03D5:  18      INC R0
+03D6:  90      MOVX @ R0,A
+03D7:  FE      MOV A,R6
+03D8:  18      INC R0
+03D9:  90      MOVX @ R0,A
+03DA:  FF      MOV A,R7
+03DB:  18      INC R0
+03DC:  90      MOVX @ R0,A
+03DD:  D5      SEL RB1
+03DE:  B9  01  MOV R1,01
+03E0:  14  71  CALL 071
+03E2:  14  36  CALL 036
+03E4:  23  F8  MOV A,F8		;Read controller
+03E6:  39      OUTL P1,A	;
+03E7:  09      IN A,P1		;
+03E8:  72  E2  JB3,E2		;Jump if stick was moved
+03EA:  F5      SEL MB1		; 
+03EB:  04  00  JMP 000
+
+'----------------------------------------------------------
+' Write to expansion port 4
+'----------------------------------------------------------
+03ED:  3C      MOVD P4,A
+03EE:  83      RET
+
+'----------------------------------------------------------
+' Write to expansion port 5
+'----------------------------------------------------------
+03EF:  3D      MOVD P5,A
+03F0:  83      RET
+
+'----------------------------------------------------------
+' Bit number R5 in A is set high
+'----------------------------------------------------------
+
+03F1:  FD      MOV A,R5
+03F2:  17      INC A
+03F3:  A9      MOV R1,A
+03F4:  23  80  MOV A,80
+03F6:  E7      RL A
+03F7:  E9  F6  DJNZ R1 F6
+03F9:  83      RET
+
+03FA:  30      XCHD A,@ R0
+03FB:  29      XCH A,R1
+03FC:  5C      ANL A,R4
+03FD:  32  35  JB1,35
+03FF:  36  00  JT0,00

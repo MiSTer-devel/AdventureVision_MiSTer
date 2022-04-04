@@ -1,0 +1,614 @@
+; 0,9 = Command byte from main processor
+; 0,10 = Data byte from main processor
+; 1,0 = Sound output state (G)
+; 1,9/1,10 = Duration control
+; 2,0 = Control byte
+;	bit 0: 1 = Loop Sound/0 = no loop
+;	bit 1,2 = 0: Turn off sound
+;	bit 3: Duration control
+;
+;------------------------------------------
+
+
+;Read command
+0:    0	     CLRA
+1:    8      LBI 0,9	  ;B = 9		
+3:    33 2E  INL	  ;A = L input
+4:    44     NOP	  ;
+5:    4      XIS 0	  ;RAM(9) = A
+
+;Read data
+7:    33 2E  INL	  ;A = L input		
+8:    4      XIS 0	  ;RAM(10) = A
+9:    0      CLRA	  ;A = 0
+B:    61 F0  JMP $1F0
+
+
+;Command 1
+C:    32     RC		  
+D:    38     LBI 3,9	  ;B=3,9
+E:    5      LD 0	  ;A=RAM(3,9)
+F:    30     ASC	  ;A=RAM(3,9) + A + C
+10:   44     NOP	  ;
+11:   4      XIS 0	  ;RAM(3,9) = A, B = B + 1
+12:   5      LD 0	  ;A=RAM(3,10)
+13:   30     ASC	  ;A=RAM(3,10) + A + C
+14:   44     NOP	  ;
+15:   4      XIS 0	  ;RAM(3,10) = A, B = B + 1
+16:   5      LD 0	  ;A=RAM(3,11)
+17:   30     ASC	  ;A=RAM(3,11) + A + C
+18:   44     NOP	  ;
+19:   4      XIS 0	  ;RAM(3,11) = A, B = B + 1
+1A:   5      LD 0	  ;A=RAM(3,12)
+1B:   30     ASC	  ;A=RAM(3,12) + A + C
+1C:   44     NOP	  ;
+1D:   4      XIS 0	  ;RAM(3,12) = A, B = B + 1
+1E:   5      LD 0	  ;A=RAM(3,13)
+1F:   30     ASC	  ;A=RAM(3,13) + A + C
+20:   44     NOP	  ;
+21:   6      X 0	  ;RAM(3,13) = A
+23:   33 3A  OMG	  ;G = RAM(3,13)
+24:   0      CLRA	  ;
+25:   11     SKMBZ 1	  ;Set RAM(3,9)(0) if RAM(3,13)(1) XOR RAM(3,12)(2)
+26:   58     AISC #$8	  ;
+27:   3B     LBI 3,12	  ;
+28:   3      SKMBZ 2	  ; 
+29:   58     AISC #$8	  ;
+2A:   44     NOP	  ;
+2B:   38     LBI 3,9	  ;
+2C:   58     AISC #$8	  ;
+2D:   58     AISC #$8	  ;
+2E:   4D     SMB 0	  ;
+
+2F:   3F     LBI 3,0	  ;Done if RAM(3,0) = A
+30:   21     SKE	  ;
+31:   F3     JP $33	  ;Not done	
+32:   48     RET
+
+33:   51     AISC #$1	  
+34:   EF     JP $2F
+
+;Command 7
+35:   B5     JSRP $B5	;Handle control register
+36:   E      LBI 0,15		
+37:   73     STII #$3
+38:   FC     JP $3C
+
+;Command 2
+39:   B5     JSRP $B5	;Handle control register
+3A:   E      LBI 0,15			
+3B:   7F     STII #$F
+
+3C:   1E     LBI 1,15
+3D:   7F     STII #$F
+3E:   E      LBI 0,15
+3F:   5      LD 0
+
+40:   6      X 0
+41:   80     JSRP $80
+42:   2F     LBI 2,0	;Read control register
+43:   13     SKMBZ 3   ;
+44:   C7     JP $47
+45:   E      LBI 0,15
+46:   80     JSRP $80
+47:   E      LBI 0,15
+48:   5      LD 0
+49:   5F     AISC #$F
+4A:   CC     JP $4C
+4B:   C0     JP $40
+
+4C:   9B     JSRP $9B
+4D:   CD     JP $4D
+
+4F:   61 F0  JMP $1F0
+
+;Command 4
+50:   B5     JSRP $B5
+51:   E      LBI 0,15		
+52:   70     STII #$0
+
+53:   1E     LBI 1,15
+54:   7F     STII #$F
+55:   E      LBI 0,15
+56:   5      LD 0
+57:   6      X 0
+58:   80     JSRP $80
+59:   2F     LBI 2,0
+5A:   13     SKMBZ 3
+5B:   DE     JP $5E
+5C:   E      LBI 0,15
+5D:   80     JSRP $80
+5E:   E      LBI 0,15
+5F:   5      LD 0
+60:   51     AISC #$1
+61:   D7     JP $57
+62:   9B     JSRP $9B
+63:   E3     JP $63
+65:   61 F0  JMP $1F0
+
+;Command 9
+66:   B5     JSRP $B5
+67:   E      LBI 0,15
+68:   78     STII #$8
+69:   D3     JP $53
+
+;Command 8
+6A:   B5     JSRP $B5
+6B:   E      LBI 0,15	
+6C:   7D     STII #$D
+6D:   D3     JP $53
+
+6E:   0      CLRA
+6F:   0      CLRA
+70:   0      CLRA
+71:   0      CLRA
+72:   0      CLRA
+73:   0      CLRA
+74:   0      CLRA
+75:   0      CLRA
+76:   0      CLRA
+77:   0      CLRA
+78:   0      CLRA
+79:   0      CLRA
+7A:   0      CLRA
+7B:   0      CLRA
+7C:   0      CLRA
+7D:   0      CLRA
+7E:   0      CLRA
+7F:   0      CLRA
+
+80:   15     LD 1	
+81:   51     AISC #$1
+82:   81     JP $81	
+83:   5      LD 0
+85:   33 3A  OMG
+86:   5F     AISC #$F
+87:   8A     JP $8A
+88:   16     X 1
+89:   80     JP $80
+
+8A:   6      X 0
+8B:    48    RET
+
+;Sound duration control
+8C:   A      LBI 0,11	    ;B=0,11, goto 8F
+8D:   B      LBI 0,12
+8E:   C      LBI 0,13
+8F:   4E     CBA	    ;A=B
+90:   18     LBI 1,9	    ;B=1,9
+91:   22     SC		    ;Carry = 1
+92:   30     ASC	    ;A = A + RAM[1,9] + 1
+93:   44     NOP	    ;
+94:   4      XIS 0	    ;RAM[1,9] = A
+95:   0      CLRA	    ;
+96:   40     COMP	    ;A = 15
+97:   30     ASC	    ;A = A + RAM[1,10] + Carry
+98:   49     RETSK	
+
+99:   6      X 0	    ;RAM[1,10] = A
+9A:   48     RET
+
+;Check for sound looping
+9B:   2F     LBI 2,0	    ;Point to control byte
+9C:   1      SKMBZ 0	    ;control bit 0 = 0, goto 9E
+9D:   49     RETSK
+
+9E:   48     RET
+
+;Command 1
+9F:   68 AD  JSR AD	    ;Handle control byte
+A1:   69 F4  JSR 1F4	    ;Initialize shift register 
+A3:   3F     LBI 3,0
+A4:   70     STII #$0
+A5:   68 C   JSR C
+A7:   A5     JSRP $A5
+
+;Control command (0)
+;Stores data byte in RAM(2,0)
+A8:   9      LBI 0,10	  ;B=0,10
+A9:   5      LD 0	  ;A = RAM(0,10)
+AA:   2F     LBI 2,0	  ;B=2,0
+AB:   6      X 0	  ;RAM(2,0) = A
+AC:   AC     JSRP $AC	  ;Wait forever
+
+
+;If control bit 2 = 0, turn off sound
+AD:   2F     LBI 2,0
+AE:   3      SKMBZ 2
+AF:   F      LBI 0,0
+B0:   E      LBI 0,15
+B1:   33 3E  OBD
+B3:   28     LBI 2,9
+B4:   48     RET
+
+;If control bit 2 = 0, turn off sound
+B5:   2F     LBI 2,0	;Read control byte
+B6:   3      SKMBZ 2	;Check bit 2
+B7:   F      LBI 0,0	;
+B8:   E      LBI 0,15	;
+B9:   33 3E  OBD	;
+BB:   48     RET	;
+
+BC:   2F     LBI 2,0
+BD:   0      CLRA
+BE:   13     SKMBZ 3
+BF:   5B     AISC #$B
+C0:   57     AISC #$7
+C1:   44     NOP
+C2:   3E     LBI 3,15
+C3:   6      X 0
+C4:   48     RET
+
+C5:   2F     LBI 2,0	
+C6:   0      CLRA
+C7:   13     SKMBZ 3
+C8:   55     AISC #$5
+C9:   5F     AISC #$F
+CA:   44     NOP
+CB:   3E     LBI 3,15
+CC:   6      X 0
+CD:   48     RET
+
+CE:   0      CLRA
+CF:   0      CLRA
+D0:   0      CLRA
+D1:   0      CLRA
+D2:   0      CLRA
+D3:   0      CLRA
+D4:   0      CLRA
+D5:   0      CLRA
+D6:   0      CLRA
+D7:   0      CLRA
+D8:   0      CLRA
+D9:   0      CLRA
+DA:   0      CLRA
+DB:   0      CLRA
+DC:   0      CLRA
+DD:   0      CLRA
+DE:   0      CLRA
+DF:   0      CLRA
+E0:   0      CLRA
+E1:   0      CLRA
+E2:   0      CLRA
+E3:   0      CLRA
+E4:   0      CLRA
+E5:   0      CLRA
+E6:   0      CLRA
+E7:   0      CLRA
+E8:   0      CLRA
+E9:   0      CLRA
+EA:   0      CLRA
+EB:   0      CLRA
+EC:   0      CLRA
+ED:   0      CLRA
+EE:   0      CLRA
+EF:   0      CLRA
+F0:   0      CLRA
+F1:   0      CLRA
+F2:   0      CLRA
+F3:   0      CLRA
+F4:   0      CLRA
+F5:   0      CLRA
+F6:   0      CLRA
+F7:   0      CLRA
+F8:   0      CLRA
+F9:   0      CLRA
+FA:   0      CLRA
+FB:   0      CLRA
+FC:   0      CLRA
+FD:   0      CLRA
+FE:   0      CLRA
+FF:   0      CLRA
+
+;--------------------------------- Play pure tone -----------------------------
+100:  13      ;Tone 0
+101:  15      ;Tone 1
+102:  17      ;Tone 2 
+103:  19      ;Tone 3
+104:  1B      ;Tone 4 
+105:  39      ;Tone 5
+106:  37      ;Tone 6
+107:  3E      ;Tone 7
+108:  3B      ;Tone 8
+109:  2E      ;Tone 9
+10A:  31      ;Tone A
+10B:  49      ;Tone B
+10C:  47      ;Tone C
+10D:  45      ;Tone D
+10E:  43      ;Tone E
+10F:  41      ;Tone F
+
+
+110:  9      LBI 0,10	    ;Point B to command data 
+111:  0      CLRA	    ;A=0
+112:  FF     JID	    ;Jump to $10[RAM(0,10)]
+
+
+113:  55     AISC #$5	    ;Tone 0	A=5
+114:  DC     JP $11C
+
+
+115:  58     AISC #$8       ;Tone 1	A=8
+116:  DC     JP $11C
+
+	
+117:  5B     AISC #$B       ;Tone 2	A=11
+118:  DC     JP $11C
+
+
+119:  5E     AISC #$E       ;Tone 3	A=14
+11A:  DC     JP $11C
+
+
+11B:  DE     JP $11E        ;Tone 4	A=0
+
+11C:  51     AISC #$1	  ;Delay to determine sound frequenct
+11D:  DC     JP $11C	  ;Loop until carry
+11E:  8C     JSRP $8C	  ;Handle duration counter
+11F:  E1     JP $121	  ;Continue sound
+120:  48     RET	  ;Duration expired
+
+121:  0      CLRA	;Delay for a fixed period of time
+122:  52     AISC #$2	;A=2
+123:  44     NOP	;
+124:  44     NOP	;
+125:  51     AISC #$1	;A = A + 1
+126:  E3     JP $123    ;Jump if there was no carry
+127:  1F     LBI 1,0	;Get sound output state
+128:  5      LD 0	;Read into A
+129:  40     COMP	;Invert it
+12A:  6      X 0	;Save it back to RAM
+12B:  33 3A  OMG	;Output to G (sound output)
+12D:  D0     JP $110	;Start over
+
+
+12E:  5F     AISC #$F	;Tone 9
+12F:  51     AISC #$1   ;Delay loop
+130:  EF     JP $12F    ;
+
+;Tone A
+131:  8D     JSRP $8D	;Handle duration
+132:  F4     JP $134	;Duration not expired
+133:  48     RET	;Duration expired
+
+134:  0      CLRA	;Set duration
+135:  58     AISC #$8	;
+136:  E3     JP $123	;Play sound
+
+
+137:  5A     AISC #$A	;Tone 6
+138:  FC     JP $13C	;
+
+
+139:  58     AISC #$8	;Tone 5
+13A:  FC     JP $13C	;
+
+
+13B:  5E     AISC #$E	;Tone 8
+13C:  61 2F  JMP $12F	;
+
+
+13E:  5D     AISC #$D	;Tone 7
+13F:  61 3C  JMP $13C	;
+
+
+141:  5B     AISC #$B	;Tone 15
+142:  CB     JP $14B	;
+
+
+143:  5A     AISC #$A	;Tone 14
+144:  CB     JP $14B
+
+
+145:  59     AISC #$9	;Tone 13
+146:  CB     JP $14B
+
+
+147:  58     AISC #$8	;Tone 12
+148:  CB     JP $14B
+
+
+149:  57     AISC #$7	;Tone 11
+14A:  CB     JP $14B
+
+14B:  44     NOP
+14C:  44     NOP
+14D:  44     NOP	;Fixed delay
+14E:  51     AISC #$1	;
+14F:  CD     JP $14D	;
+150:  8E     JSRP $8E	;Duration control
+151:  61 27  JMP $127	;Play sound
+
+153:  48     RET	;Duration expired
+
+;-----------------------------------------------------------------------
+
+;If control bit 1 = 0 or bit 2 = 0 then turn off sound
+154:  2F     LBI 2,0	   ;Point B to control byte
+155:  11     SKMBZ 1	   ;If bit 1 = 0 goto 157
+156:  D9     JP $159
+
+157:  2F     LBI 2,0	   ;Point B to control byte
+158:  3      SKMBZ 2	   ;If bit 2 = 0 goto 15A
+159:  F      LBI 0,0	   ;B=0, Goto 15B
+15A:  E      LBI 0,15	   ;B=15
+15B:  33 3E  OBD	   ;Output B to D
+
+;Setup sound duration
+;if control bit 3 = 1, RAM(1,10) = 7, if bit 3 = 0, RAM(1,10) = 6
+15D:  2F     LBI 2,0	   ;Point B to control byte
+15E:  0      CLRA	   ;A=0
+15F:  13     SKMBZ 3	   ;If bit 3 = 0 goto 161
+160:  57     AISC #$7	   ;A=7
+161:  5F     AISC #$F	   ;A=A + 15
+162:  44     NOP	   ;
+163:  19     LBI 1,10	   ;B=1,10
+164:  6      X 0	   ;A=RAM(1,10),RAM(1,10) = A
+165:  61 10  JMP $110	   ;Start playing sound
+
+;Command 2
+167:  60 39  JMP $39
+
+;Command 9
+169:  60 66  JMP $66
+
+;Command 10,11,12,13
+16B:  5      LD 0		
+16C:  5F     AISC #$F
+16D:  F0     JP $170
+16E:  6      X 0
+16F:  48     RET
+
+170:  7      XDS 0
+171:  5      LD 0
+172:  5F     AISC #$F
+173:  49     RETSK
+
+174:  EE     JP $16E
+
+;Command 7
+175:  60 35  JMP $35
+
+ ;Command 8
+177:  60 6A  JMP $6A
+
+;Command 4
+179:  60 50  JMP $50
+
+;Command 3
+17B:  28     LBI 2,9
+17C:  72     STII #$2
+17D:  F      LBI 0,0
+17E:  33 3E  OBD
+180:  61 8C  JMP $18C
+
+;Command 5
+182:  68 AD  JSR AD
+184:  71     STII #$1
+185:  3F     LBI 3,0
+186:  7C     STII #$C
+187:  61 8E  JMP $18E
+
+;Command 6
+189:  68 AD  JSR AD
+18B:  70     STII #$0
+18C:  3F     LBI 3,0
+18D:  70     STII #$0
+18E:  69 F4  JSR 1F4	;Init shift register
+190:  68 C5  JSR C5	;
+192:  68 C   JSR C
+194:  3D     LBI 3,14
+195:  5      LD 0
+196:  5F     AISC #$F
+197:  DA     JP $19A
+198:  6      X 0
+199:  D2     JP $192
+19A:  4      XIS 0
+19B:  5      LD 0
+19C:  5F     AISC #$F
+19D:  51     AISC #$1
+19E:  D8     JP $198
+19F:  68 BC  JSR BC
+1A1:  28     LBI 2,9
+1A2:  1      SKMBZ 0
+1A3:  EE     JP $1AE
+1A4:  11     SKMBZ 1
+1A5:  F5     JP $1B5
+1A6:  3F     LBI 3,0
+1A7:  5      LD 0
+1A8:  51     AISC #$1
+1A9:  F2     JP $1B2
+1AA:  9B     JSRP $9B
+1AB:  EB     JP $1AB
+1AC:  61 F0  JMP $1F0
+1AE:  3F     LBI 3,0
+1AF:  5      LD 0
+1B0:  5F     AISC #$F
+1B1:  EA     JP $1AA
+1B2:  6      X 0
+1B3:  61 92  JMP $192
+1B5:  3F     LBI 3,0
+1B6:  13     SKMBZ 3
+1B7:  FA     JP $1BA
+1B8:  7A     STII #$A
+1B9:  E6     JP $1A6
+1BA:  E      LBI 0,15
+1BB:  33 3E  OBD
+1BD:  E6     JP $1A6
+1BE:  32     RC
+1BF:  C1     JP $1C1
+1C0:  22     SC
+1C1:  0      CLRA
+1C2:  51     AISC #$1
+1C3:  30     ASC
+1C4:  44     NOP
+1C5:  7      XDS 0
+1C6:  0      CLRA
+1C7:  30     ASC
+1C8:  44     NOP
+1C9:  7      XDS 0
+1CA:  0      CLRA
+1CB:  30     ASC
+1CC:  CE     JP $1CE
+1CD:  48     RET
+
+1CE:  6      X 0
+1CF:  49     RETSK
+
+;Command 1
+1D0:  60 9F  JMP $9F
+
+;Handle pure tone command (E,F)
+1D2:  69 54  JSR 154		;Play sound for duration, do this three times
+1D4:  69 57  JSR 157		;
+1D6:  69 57  JSR 157		;
+1D8:  9B     JSRP $9B		;Determine if sound should be continous
+1D9:  D9     JP $1D9		;Stop sound, loop forever
+
+
+1DA:  D2     JP $1D2		;Continue playing sound
+
+1DB:  0      CLRA
+1DC:  0      CLRA
+1DD:  0      CLRA
+1DE:  0      CLRA
+1DF:  0      CLRA
+
+;Command handler pointers
+1E0:  FB     ;Control command
+1E1:  D0     ;Command 1
+1E2:  67     ;Command 2
+1E3:  7B     ;Command 3
+1E4:  79     ;Command 4
+1E5:  82     ;Command 5
+1E6:  89     ;Command 6
+1E7:  75     ;Command 7
+1E8:  77     ;Command 8
+1E9:  69     ;Command 9
+1EA:  6B     ;Command 10
+1EB:  6B     ;Command 11
+1EC:  6B     ;Command 12
+1ED:  6B     ;Command 13
+1EE:  D2     ;Pure tone command
+1EF:  D2     ;Pure tone command
+
+;Jump to command handler
+1F0:  8      LBI 0,9	     ;B = 9
+1F1:  0      CLRA	     ;
+1F2:  5E     AISC #$E	     ;A = E
+1F3:  FF     JID	     ;Jump indirect to $1E(RAM(9))
+
+1F4:  38     LBI 3,9
+1F5:  70     STII #$0	     ;RAM(9) = 0
+1F6:  70     STII #$0	     ;RAM(10) = 0
+1F7:  70     STII #$0	     ;RAM(11) = 0
+1F8:  70     STII #$0	     ;RAM(12) = 0
+1F9:  77     STII #$7	     ;RAM(13) = 7
+1FA:  48     RET
+
+;Control command
+1FB:  60 A8  JMP $A8
+
+
+1FD:  0      CLRA
+1FE:  0      CLRA
